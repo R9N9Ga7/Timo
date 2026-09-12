@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
+import { getCompletionNotificationDismissal, setCompletionNotificationDismissal, type CompletionNotificationDismissal } from './completionNotification';
 import { formatDuration, localIsoDate, prettyDate, reportRange } from './date';
 import { armTimerSignal, crossedTimerGoal, getTimerSignalVolume, playTimerGoalSignal, setTimerSignalVolume } from './timerSignal';
 import type { Category, Occurrence, Profile, RangeMode, Report, ScheduleType, Task, TaskInput } from './types';
@@ -37,6 +38,8 @@ export default function App() {
   const [editingTask, setEditingTask] = useState<Task | undefined>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
+  const [notificationDismissal, setNotificationDismissal] = useState<CompletionNotificationDismissal>(getCompletionNotificationDismissal);
+  const [completionNotification, setCompletionNotification] = useState<{ id: string; title: string }>();
   const previousElapsed = useRef(new Map<string, number>());
 
   const loadProfiles = useCallback(async () => {
@@ -88,6 +91,7 @@ export default function App() {
       const previous = previousElapsed.current.get(item.id);
       if (crossedTimerGoal(previous, elapsed, item.plannedSeconds, item.isRunning)) {
         void playTimerGoalSignal();
+        setCompletionNotification({ id: item.id, title: item.title });
       }
       previousElapsed.current.set(item.id, elapsed);
     }
@@ -95,6 +99,11 @@ export default function App() {
       if (!visibleIds.has(id)) previousElapsed.current.delete(id);
     }
   }, [today, tick, loadedAt]);
+  useEffect(() => {
+    if (!completionNotification || notificationDismissal !== 'automatic') return;
+    const id = window.setTimeout(() => setCompletionNotification(undefined), 6000);
+    return () => window.clearTimeout(id);
+  }, [completionNotification, notificationDismissal]);
 
   const currentProfile = profiles.find(x => x.id === profileId);
   const effectiveSeconds = (item: Occurrence) => item.elapsedSeconds + (item.isRunning ? Math.max(0, Math.floor((tick - loadedAt) / 1000)) : 0);
@@ -194,8 +203,13 @@ export default function App() {
       </section>
     </main>
 
+    {completionNotification && <div className="completion-toast" role="status" aria-live="polite">
+      <span className="completion-toast-mark">✓</span><div><strong>Routine completed</strong><span>{completionNotification.title} reached its goal.</span></div>
+      <button type="button" aria-label="Close completion notification" onClick={() => setCompletionNotification(undefined)}>×</button>
+    </div>}
+
     {modal === 'task' && <TaskModal profileId={profileId} categories={categories} task={editingTask} onClose={() => setModal(null)} onSaved={saved} onCategoryCreated={async name => { const result = await api.createCategory(profileId, name); setCategories(await api.categories(profileId)); return result.id; }} />}
-    {modal === 'manage' && <ManageModal profileId={profileId} categories={categories} tasks={tasks} onClose={() => setModal(null)} onChanged={loadProfileData} onEdit={openTask} />}
+    {modal === 'manage' && <ManageModal profileId={profileId} categories={categories} tasks={tasks} notificationDismissal={notificationDismissal} onNotificationDismissalChange={value => { setNotificationDismissal(value); setCompletionNotificationDismissal(value); }} onClose={() => setModal(null)} onChanged={loadProfileData} onEdit={openTask} />}
     {modal === 'profile' && <ProfileModal profiles={profiles} activeId={profileId} onClose={() => setModal(null)} onSelect={id => { localStorage.setItem('timo-profile', id); setProfileId(id); setCategoryFilter(''); setModal(null); }} onChanged={loadProfiles} />}
   </div>;
 }
@@ -256,7 +270,7 @@ function TaskModal({ profileId, categories, task, onClose, onSaved, onCategoryCr
   </form></Modal>;
 }
 
-function ManageModal({ profileId, categories, tasks, onClose, onChanged, onEdit }: { profileId: string; categories: Category[]; tasks: Task[]; onClose: () => void; onChanged: () => Promise<void>; onEdit: (task: Task) => void }) {
+function ManageModal({ profileId, categories, tasks, notificationDismissal, onNotificationDismissalChange, onClose, onChanged, onEdit }: { profileId: string; categories: Category[]; tasks: Task[]; notificationDismissal: CompletionNotificationDismissal; onNotificationDismissalChange: (value: CompletionNotificationDismissal) => void; onClose: () => void; onChanged: () => Promise<void>; onEdit: (task: Task) => void }) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [signalVolume, setSignalVolume] = useState(() => Math.round(getTimerSignalVolume() * 100));
@@ -264,7 +278,7 @@ function ManageModal({ profileId, categories, tasks, onClose, onChanged, onEdit 
   async function previewSignal() { try { setError(''); await armTimerSignal(); await playTimerGoalSignal(); } catch (e) { setError((e as Error).message); } }
   return <Modal title="Your routines" subtitle="Organize your practice" onClose={onClose} wide>{error && <p className="form-error">{error}</p>}<div className="manage-grid"><div><div className="manage-heading"><h3>Categories</h3><form onSubmit={e => { e.preventDefault(); run(() => api.createCategory(profileId, name)).then(() => setName('')); }}><input required value={name} onChange={e => setName(e.target.value)} placeholder="New category"/><button>+</button></form></div><div className="manage-list">{categories.map(category => <div key={category.id} className={category.isArchived ? 'archived' : ''}><span>{category.name}<small>{tasks.filter(x => x.categoryId === category.id && !x.isArchived).length} routines</small></span>{!category.isArchived && <span><button onClick={() => { const next = prompt('Rename category', category.name); if (next) run(() => api.renameCategory(category.id, next)); }}>Rename</button><button onClick={() => confirm(`Archive ${category.name}?`) && run(() => api.archiveCategory(category.id))}>Archive</button></span>}</div>)}</div></div>
     <div><div className="manage-heading"><h3>Tasks</h3></div><div className="manage-list">{tasks.map(task => <div key={task.id} className={task.isArchived ? 'archived' : ''}><span>{task.title}<small>{task.categoryName} · {formatDuration(task.targetSeconds, true)}</small></span>{!task.isArchived && <span><button onClick={() => onEdit(task)}>Edit</button><button onClick={() => confirm(`Archive ${task.title}?`) && run(() => api.archiveTask(task.id))}>Archive</button></span>}</div>)}</div></div></div>
-    <section className="sound-settings"><div><span className="section-kicker">Timer notification</span><h3>Goal sound</h3><p>The same volume is used when any routine reaches its planned time.</p></div><div className="sound-control"><label htmlFor="signal-volume">Volume</label><input id="signal-volume" type="range" min="0" max="100" step="1" value={signalVolume} onChange={event => { const value = Number(event.target.value); setSignalVolume(value); setTimerSignalVolume(value / 100); }} /><output htmlFor="signal-volume">{signalVolume}%</output><button type="button" className="secondary-button" onClick={previewSignal}>Play sound</button></div></section>
+    <section className="sound-settings"><div><span className="section-kicker">Timer notification</span><h3>Completion alert</h3><p>A notification and sound appear when any routine reaches its planned time.</p></div><div className="notification-controls"><div className="sound-control"><label htmlFor="signal-volume">Volume</label><input id="signal-volume" type="range" min="0" max="100" step="1" value={signalVolume} onChange={event => { const value = Number(event.target.value); setSignalVolume(value); setTimerSignalVolume(value / 100); }} /><output htmlFor="signal-volume">{signalVolume}%</output><button type="button" className="secondary-button" onClick={previewSignal}>Play sound</button></div><label className="dismissal-control" htmlFor="notification-dismissal"><span>Dismiss notification</span><select id="notification-dismissal" value={notificationDismissal} onChange={event => onNotificationDismissalChange(event.target.value as CompletionNotificationDismissal)}><option value="automatic">Automatically after 6 seconds</option><option value="manual">Only when I close it</option></select></label></div></section>
   </Modal>;
 }
 
