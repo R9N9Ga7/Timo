@@ -1,6 +1,7 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import { formatDuration, localIsoDate, prettyDate, reportRange } from './date';
+import { armTimerSignal, crossedTimerGoal, getTimerSignalVolume, playTimerGoalSignal, setTimerSignalVolume } from './timerSignal';
 import type { Category, Occurrence, Profile, RangeMode, Report, ScheduleType, Task, TaskInput } from './types';
 
 const emptyReport: Report = {
@@ -36,6 +37,7 @@ export default function App() {
   const [editingTask, setEditingTask] = useState<Task | undefined>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
+  const previousElapsed = useRef(new Map<string, number>());
 
   const loadProfiles = useCallback(async () => {
     const values = await api.profiles();
@@ -79,6 +81,20 @@ export default function App() {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previousOverflow; };
   }, [modal]);
+  useEffect(() => {
+    const visibleIds = new Set(today.map(item => item.id));
+    for (const item of today) {
+      const elapsed = item.elapsedSeconds + (item.isRunning ? Math.max(0, Math.floor((tick - loadedAt) / 1000)) : 0);
+      const previous = previousElapsed.current.get(item.id);
+      if (crossedTimerGoal(previous, elapsed, item.plannedSeconds, item.isRunning)) {
+        void playTimerGoalSignal();
+      }
+      previousElapsed.current.set(item.id, elapsed);
+    }
+    for (const id of previousElapsed.current.keys()) {
+      if (!visibleIds.has(id)) previousElapsed.current.delete(id);
+    }
+  }, [today, tick, loadedAt]);
 
   const currentProfile = profiles.find(x => x.id === profileId);
   const effectiveSeconds = (item: Occurrence) => item.elapsedSeconds + (item.isRunning ? Math.max(0, Math.floor((tick - loadedAt) / 1000)) : 0);
@@ -88,7 +104,10 @@ export default function App() {
     try {
       setError('');
       if (item.isRunning) await api.stopTimer(profileId);
-      else await api.startTimer(profileId, item.id);
+      else {
+        await armTimerSignal();
+        await api.startTimer(profileId, item.id);
+      }
       await loadProfileData();
     } catch (e) { setError((e as Error).message); }
   }
@@ -240,9 +259,13 @@ function TaskModal({ profileId, categories, task, onClose, onSaved, onCategoryCr
 function ManageModal({ profileId, categories, tasks, onClose, onChanged, onEdit }: { profileId: string; categories: Category[]; tasks: Task[]; onClose: () => void; onChanged: () => Promise<void>; onEdit: (task: Task) => void }) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [signalVolume, setSignalVolume] = useState(() => Math.round(getTimerSignalVolume() * 100));
   async function run(action: () => Promise<unknown>) { try { setError(''); await action(); await onChanged(); } catch (e) { setError((e as Error).message); } }
+  async function previewSignal() { try { setError(''); await armTimerSignal(); await playTimerGoalSignal(); } catch (e) { setError((e as Error).message); } }
   return <Modal title="Your routines" subtitle="Organize your practice" onClose={onClose} wide>{error && <p className="form-error">{error}</p>}<div className="manage-grid"><div><div className="manage-heading"><h3>Categories</h3><form onSubmit={e => { e.preventDefault(); run(() => api.createCategory(profileId, name)).then(() => setName('')); }}><input required value={name} onChange={e => setName(e.target.value)} placeholder="New category"/><button>+</button></form></div><div className="manage-list">{categories.map(category => <div key={category.id} className={category.isArchived ? 'archived' : ''}><span>{category.name}<small>{tasks.filter(x => x.categoryId === category.id && !x.isArchived).length} routines</small></span>{!category.isArchived && <span><button onClick={() => { const next = prompt('Rename category', category.name); if (next) run(() => api.renameCategory(category.id, next)); }}>Rename</button><button onClick={() => confirm(`Archive ${category.name}?`) && run(() => api.archiveCategory(category.id))}>Archive</button></span>}</div>)}</div></div>
-    <div><div className="manage-heading"><h3>Tasks</h3></div><div className="manage-list">{tasks.map(task => <div key={task.id} className={task.isArchived ? 'archived' : ''}><span>{task.title}<small>{task.categoryName} · {formatDuration(task.targetSeconds, true)}</small></span>{!task.isArchived && <span><button onClick={() => onEdit(task)}>Edit</button><button onClick={() => confirm(`Archive ${task.title}?`) && run(() => api.archiveTask(task.id))}>Archive</button></span>}</div>)}</div></div></div></Modal>;
+    <div><div className="manage-heading"><h3>Tasks</h3></div><div className="manage-list">{tasks.map(task => <div key={task.id} className={task.isArchived ? 'archived' : ''}><span>{task.title}<small>{task.categoryName} · {formatDuration(task.targetSeconds, true)}</small></span>{!task.isArchived && <span><button onClick={() => onEdit(task)}>Edit</button><button onClick={() => confirm(`Archive ${task.title}?`) && run(() => api.archiveTask(task.id))}>Archive</button></span>}</div>)}</div></div></div>
+    <section className="sound-settings"><div><span className="section-kicker">Timer notification</span><h3>Goal sound</h3><p>The same volume is used when any routine reaches its planned time.</p></div><div className="sound-control"><label htmlFor="signal-volume">Volume</label><input id="signal-volume" type="range" min="0" max="100" step="1" value={signalVolume} onChange={event => { const value = Number(event.target.value); setSignalVolume(value); setTimerSignalVolume(value / 100); }} /><output htmlFor="signal-volume">{signalVolume}%</output><button type="button" className="secondary-button" onClick={previewSignal}>Play sound</button></div></section>
+  </Modal>;
 }
 
 function ProfileModal({ profiles, activeId, onClose, onSelect, onChanged }: { profiles: Profile[]; activeId: string; onClose: () => void; onSelect: (id: string) => void; onChanged: () => Promise<void> }) {
