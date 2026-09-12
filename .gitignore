@@ -1,0 +1,12 @@
+node_modules/
+dist/
+release/
+artifacts/
+bin/
+obj/
+*.tsbuildinfo
+*.db
+*.db-shm
+*.db-wal
+.env
+.vs/

@@ -1,0 +1,34 @@
+{
+  "name": "timo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A local-first routine and time tracker.",
+  "author": "Timo contributors",
+  "main": "apps/desktop/main.cjs",
+  "workspaces": ["apps/web"],
+  "scripts": {
+    "postinstall": "node scripts/ensure-electron.cjs",
+    "repair:electron": "node scripts/ensure-electron.cjs",
+    "dev": "concurrently -k -n WEB,DESKTOP -c cyan,magenta \"npm run dev:web\" \"wait-on http://127.0.0.1:5173 && electron apps/desktop/main.cjs\"",
+    "dev:web": "npm --workspace apps/web run dev",
+    "build:web": "npm --workspace apps/web run build",
+    "publish:api": "dotnet publish src/Timo.Api/Timo.Api.csproj -c Release -r win-x64 --self-contained true -o artifacts/api",
+    "build": "npm run build:web && npm run publish:api && electron-builder --win nsis",
+    "test": "dotnet test tests/Timo.Api.Tests/Timo.Api.Tests.csproj && npm --workspace apps/web run test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^38.1.2",
+    "electron-builder": "^26.0.12",
+    "wait-on": "^8.0.4"
+  },
+  "build": {
+    "appId": "app.timo.desktop",
+    "productName": "Timo",
+    "directories": { "output": "release" },
+    "files": ["apps/desktop/**/*", "apps/web/dist/**/*"],
+    "extraResources": [{ "from": "artifacts/api", "to": "api" }],
+    "win": { "target": "nsis" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+  }
+}
