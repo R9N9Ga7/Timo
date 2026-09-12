@@ -9,6 +9,8 @@
   "scripts": {
     "postinstall": "node scripts/ensure-electron.cjs",
     "repair:electron": "node scripts/ensure-electron.cjs",
+    "seed": "dotnet run --project tools/Timo.Seeder/Timo.Seeder.csproj --",
+    "seed:replace": "dotnet run --project tools/Timo.Seeder/Timo.Seeder.csproj -- --replace",
     "dev": "concurrently -k -n WEB,DESKTOP -c cyan,magenta \"npm run dev:web\" \"wait-on http://127.0.0.1:5173 && electron apps/desktop/main.cjs\"",
     "dev:web": "npm --workspace apps/web run dev",
     "build:web": "npm --workspace apps/web run build",
