@@ -73,6 +73,12 @@ export default function App() {
     const id = window.setInterval(() => setTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+  useEffect(() => {
+    if (!modal) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [modal]);
 
   const currentProfile = profiles.find(x => x.id === profileId);
   const effectiveSeconds = (item: Occurrence) => item.elapsedSeconds + (item.isRunning ? Math.max(0, Math.floor((tick - loadedAt) / 1000)) : 0);
