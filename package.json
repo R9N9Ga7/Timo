@@ -29,8 +29,8 @@
     "productName": "Timo",
     "directories": { "output": "release" },
     "files": ["apps/desktop/**/*", "apps/web/dist/**/*"],
-    "extraResources": [{ "from": "artifacts/api", "to": "api" }],
-    "win": { "target": "nsis" },
+    "extraResources": [{ "from": "artifacts/api", "to": "api" }, { "from": "build/logo.png", "to": "logo.png" }],
+    "win": { "target": "nsis", "icon": "build/logo.png" },
     "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
   }
 }

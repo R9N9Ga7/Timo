@@ -64,6 +64,7 @@ async function createWindow() {
     minWidth: 980,
     minHeight: 700,
     backgroundColor: '#f6f4ee',
+    icon: app.isPackaged ? path.join(process.resourcesPath, 'logo.png') : path.join(__dirname, '..', '..', 'build', 'logo.png'),
     titleBarStyle: 'hiddenInset',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

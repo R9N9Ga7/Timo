@@ -9,6 +9,7 @@ const emptyReport: Report = {
   from: '', to: '', plannedSeconds: 0, actualSeconds: 0, scheduledCount: 0,
   completedCount: 0, categories: [], days: [], recentCompletions: []
 };
+const logoUrl = `${import.meta.env.BASE_URL}logo.png`;
 
 function Icon({ name }: { name: 'plus' | 'play' | 'stop' | 'settings' | 'clock' | 'chart' | 'tag' }) {
   const paths = {
@@ -138,7 +139,7 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="topbar">
-      <a className="brand" href="#top" aria-label="Timo home"><span className="brand-mark">T</span><span>timo</span></a>
+      <a className="brand" href="#top" aria-label="Timo home"><img className="brand-logo" src={logoUrl} alt=""/><span>timo</span></a>
       <nav className="nav-pills" aria-label="Main navigation"><a className="active" href="#today">Today</a><a href="#insights">Insights</a></nav>
       <div className="top-actions">
         <button className="profile-chip" onClick={() => setModal('profile')}><span className="avatar">{currentProfile?.name.slice(0, 1).toUpperCase()}</span>{currentProfile?.name}</button>
@@ -217,7 +218,7 @@ export default function App() {
 function Welcome({ onCreated, error }: { onCreated: (name: string) => Promise<void>; error: string }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
-  return <main className="welcome"><div className="welcome-art"><div className="sun"/><div className="arch"/><span>timo</span></div><div className="welcome-form"><span className="section-kicker">Welcome</span><h1>Your time,<br/><em>intentionally.</em></h1><p>Create a local profile to begin shaping the routines that matter to you.</p>{error && <p className="form-error">{error}</p>}<form onSubmit={async e => { e.preventDefault(); setBusy(true); await onCreated(name).finally(() => setBusy(false)); }}><label>Your name<input autoFocus required maxLength={80} value={name} onChange={e => setName(e.target.value)} placeholder="How should we call you?" /></label><button className="primary-button" disabled={busy}>{busy ? 'Creating…' : 'Begin'}</button></form></div></main>;
+  return <main className="welcome"><div className="welcome-art"><img className="welcome-logo" src={logoUrl} alt="Timo"/></div><div className="welcome-form"><span className="section-kicker">Welcome</span><h1>Your time,<br/><em>intentionally.</em></h1><p>Create a local profile to begin shaping the routines that matter to you.</p>{error && <p className="form-error">{error}</p>}<form onSubmit={async e => { e.preventDefault(); setBusy(true); await onCreated(name).finally(() => setBusy(false)); }}><label>Your name<input autoFocus required maxLength={80} value={name} onChange={e => setName(e.target.value)} placeholder="How should we call you?" /></label><button className="primary-button" disabled={busy}>{busy ? 'Creating…' : 'Begin'}</button></form></div></main>;
 }
 
 function Metric({ icon, label, value, note }: { icon: 'clock' | 'chart' | 'tag'; label: string; value: string; note: string }) {
