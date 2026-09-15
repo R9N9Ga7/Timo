@@ -7,7 +7,7 @@ import type { Category, Occurrence, Profile, RangeMode, Report, ScheduleType, Ta
 
 const emptyReport: Report = {
   from: '', to: '', plannedSeconds: 0, actualSeconds: 0, scheduledCount: 0,
-  completedCount: 0, categories: [], days: [], recentCompletions: []
+  completedCount: 0, categories: [], routines: [], days: [], recentCompletions: []
 };
 const logoUrl = `${import.meta.env.BASE_URL}logo.png`;
 
@@ -202,6 +202,20 @@ export default function App() {
             })}</div>}
           </div>
           <div className="panel heatmap-panel"><div className="panel-heading"><div><span className="section-kicker">Daily consistency</span><h3>Activity map</h3></div><span>Hover for details</span></div><Heatmap report={report} /></div>
+        </div>
+
+        <div className="panel routine-panel"><div className="panel-heading"><div><span className="section-kicker">Routine by routine</span><h3>Routine statistics</h3></div><span>{report.routines.length} {report.routines.length === 1 ? 'routine' : 'routines'}</span></div>
+          {report.routines.length === 0 ? <p className="muted">Scheduled routines will appear here.</p> : <div className="routine-list">
+            <div className="routine-row routine-row-heading" aria-hidden="true"><span>Routine</span><span>Tracked / planned</span><span>Completed</span></div>
+            {report.routines.map(routine => {
+              const progress = routine.plannedSeconds ? Math.min(100, routine.actualSeconds / routine.plannedSeconds * 100) : 0;
+              return <div className="routine-row" key={routine.routineId}>
+                <span className="routine-name"><strong>{routine.title}</strong><small>{routine.categoryName}</small></span>
+                <span className="routine-time"><span><strong>{formatDuration(routine.actualSeconds, true)}</strong> / {formatDuration(routine.plannedSeconds, true)}</span><span className="bar"><i style={{ width: `${progress}%` }} /></span></span>
+                <span className="routine-completion"><strong>{routine.completedCount}/{routine.scheduledCount}</strong><small>{routine.scheduledCount ? Math.round(routine.completedCount / routine.scheduledCount * 100) : 0}%</small></span>
+              </div>;
+            })}
+          </div>}
         </div>
 
         <div className="panel recent-panel"><div className="panel-heading"><div><span className="section-kicker">Recently finished</span><h3>Completed routines</h3></div></div>

@@ -212,6 +212,17 @@ app.MapGet("/api/reports", async (Guid profileId, DateOnly from, DateOnly to, Gu
     var categoryRows = rows.GroupBy(x => new { x.Occurrence.TaskDefinition!.CategoryId, x.Occurrence.TaskDefinition.Category!.Name })
         .Select(g => new CategorySummaryDto(g.Key.CategoryId, g.Key.Name, g.Sum(x => (long)x.Occurrence.PlannedSeconds),
             g.Sum(x => x.Actual), g.Count(), g.Count(x => x.Actual >= x.Occurrence.PlannedSeconds))).OrderByDescending(x => x.ActualSeconds).ToList();
+    var routineRows = rows.GroupBy(x => new
+        {
+            RoutineId = x.Occurrence.TaskDefinitionId,
+            x.Occurrence.TaskDefinition!.Title,
+            x.Occurrence.TaskDefinition.CategoryId,
+            CategoryName = x.Occurrence.TaskDefinition.Category!.Name
+        })
+        .Select(g => new RoutineSummaryDto(g.Key.RoutineId, g.Key.Title, g.Key.CategoryId, g.Key.CategoryName,
+            g.Sum(x => (long)x.Occurrence.PlannedSeconds), g.Sum(x => x.Actual), g.Count(),
+            g.Count(x => x.Actual >= x.Occurrence.PlannedSeconds)))
+        .OrderByDescending(x => x.ActualSeconds).ThenBy(x => x.Title).ToList();
     var days = rows.GroupBy(x => x.Occurrence.ScheduledDate).Select(g => new DaySummaryDto(g.Key, g.Sum(x => x.Actual),
         g.Where(x => x.Actual >= x.Occurrence.PlannedSeconds).Select(x => new DayTaskDto(x.Occurrence.TaskDefinition!.Title,
             x.Occurrence.TaskDefinition.Category!.Name, x.Actual, x.Actual >= x.Occurrence.PlannedSeconds)).ToList())).OrderBy(x => x.Date).ToList();
@@ -221,7 +232,7 @@ app.MapGet("/api/reports", async (Guid profileId, DateOnly from, DateOnly to, Gu
             x.Occurrence.CompletedAtUtc ?? x.Occurrence.Sessions.Max(s => s.EndedAtUtc ?? now)))
         .OrderByDescending(x => x.CompletedAtUtc).Take(5).ToList();
     return Results.Ok(new ReportDto(from, to, rows.Sum(x => (long)x.Occurrence.PlannedSeconds), rows.Sum(x => x.Actual),
-        rows.Count, rows.Count(x => x.Actual >= x.Occurrence.PlannedSeconds), categoryRows, days, recent));
+        rows.Count, rows.Count(x => x.Actual >= x.Occurrence.PlannedSeconds), categoryRows, routineRows, days, recent));
 });
 
 app.Run();
