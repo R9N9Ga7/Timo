@@ -1,4 +1,4 @@
-import type { Category, Occurrence, Profile, Report, Task, TaskInput } from './types';
+import type { Category, DataBackup, Occurrence, Profile, Report, Task, TaskInput } from './types';
 
 const baseUrl = window.timoDesktop?.apiUrl || 'http://127.0.0.1:5127';
 const token = window.timoDesktop?.apiToken;
@@ -29,6 +29,8 @@ export const api = {
   createProfile: (name: string) => request<Profile>('/api/profiles/', { method: 'POST', body: JSON.stringify({ name }) }),
   renameProfile: (id: string, name: string) => request<Profile>(`/api/profiles/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
   deleteProfile: (id: string) => request<void>(`/api/profiles/${id}`, { method: 'DELETE' }),
+  exportData: () => request<DataBackup>('/api/data/export'),
+  importData: (backup: DataBackup) => request<void>('/api/data/import', { method: 'POST', body: JSON.stringify(backup) }),
   categories: (profileId: string) => request<Category[]>(`/api/categories/?${q({ profileId })}`),
   createCategory: (profileId: string, name: string) => request<Category>('/api/categories/', { method: 'POST', body: JSON.stringify({ profileId, name }) }),
   renameCategory: (id: string, name: string) => request<Category>(`/api/categories/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),

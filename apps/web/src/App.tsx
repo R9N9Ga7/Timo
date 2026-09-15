@@ -3,7 +3,7 @@ import { api } from './api';
 import { getCompletionNotificationDismissal, setCompletionNotificationDismissal, type CompletionNotificationDismissal } from './completionNotification';
 import { formatDuration, localIsoDate, prettyDate, reportRange } from './date';
 import { armTimerSignal, crossedTimerGoal, getTimerSignalVolume, playTimerGoalSignal, setTimerSignalVolume } from './timerSignal';
-import type { Category, Occurrence, Profile, RangeMode, Report, ScheduleType, Task, TaskInput } from './types';
+import type { Category, DataBackup, Occurrence, Profile, RangeMode, Report, ScheduleType, Task, TaskInput } from './types';
 
 const emptyReport: Report = {
   from: '', to: '', plannedSeconds: 0, actualSeconds: 0, scheduledCount: 0,
@@ -295,11 +295,40 @@ function ManageModal({ profileId, categories, tasks, notificationDismissal, onNo
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [signalVolume, setSignalVolume] = useState(() => Math.round(getTimerSignalVolume() * 100));
+  const [dataBusy, setDataBusy] = useState<'export' | 'import'>();
+  const importInput = useRef<HTMLInputElement>(null);
   async function run(action: () => Promise<unknown>) { try { setError(''); await action(); await onChanged(); } catch (e) { setError((e as Error).message); } }
   async function previewSignal() { try { setError(''); await armTimerSignal(); await playTimerGoalSignal(); } catch (e) { setError((e as Error).message); } }
+  function downloadBackup(backup: DataBackup, prefix: string) {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${prefix}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+  async function exportData() {
+    try {
+      setError(''); setDataBusy('export');
+      const backup = await api.exportData();
+      downloadBackup(backup, 'timo-backup');
+    } catch (e) { setError((e as Error).message); } finally { setDataBusy(undefined); }
+  }
+  async function importData(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !confirm('Import this backup? A safety backup of your current data will be saved in the local backups folder before all existing Timo data is replaced.')) return;
+    try {
+      setError(''); setDataBusy('import');
+      const backup = JSON.parse(await file.text()) as DataBackup;
+      await api.importData(backup);
+      window.location.reload();
+    } catch (e) { setError(e instanceof SyntaxError ? 'Choose a valid JSON backup file.' : (e as Error).message); setDataBusy(undefined); }
+  }
   return <Modal title="Your routines" subtitle="Organize your practice" onClose={onClose} wide>{error && <p className="form-error">{error}</p>}<div className="manage-grid"><div><div className="manage-heading"><h3>Categories</h3><form onSubmit={e => { e.preventDefault(); run(() => api.createCategory(profileId, name)).then(() => setName('')); }}><input required value={name} onChange={e => setName(e.target.value)} placeholder="New category"/><button>+</button></form></div><div className="manage-list">{categories.map(category => <div key={category.id} className={category.isArchived ? 'archived' : ''}><span>{category.name}<small>{tasks.filter(x => x.categoryId === category.id && !x.isArchived).length} routines</small></span>{!category.isArchived && <span><button onClick={() => { const next = prompt('Rename category', category.name); if (next) run(() => api.renameCategory(category.id, next)); }}>Rename</button><button onClick={() => confirm(`Archive ${category.name}?`) && run(() => api.archiveCategory(category.id))}>Archive</button></span>}</div>)}</div></div>
     <div><div className="manage-heading"><h3>Tasks</h3></div><div className="manage-list">{tasks.map(task => <div key={task.id} className={task.isArchived ? 'archived' : ''}><span>{task.title}<small>{task.categoryName} · {formatDuration(task.targetSeconds, true)}</small></span>{!task.isArchived && <span><button onClick={() => onEdit(task)}>Edit</button><button onClick={() => confirm(`Archive ${task.title}?`) && run(() => api.archiveTask(task.id))}>Archive</button></span>}</div>)}</div></div></div>
     <section className="sound-settings"><div><span className="section-kicker">Timer notification</span><h3>Completion alert</h3><p>A notification and sound appear when any routine reaches its planned time.</p></div><div className="notification-controls"><div className="sound-control"><label htmlFor="signal-volume">Volume</label><input id="signal-volume" type="range" min="0" max="100" step="1" value={signalVolume} onChange={event => { const value = Number(event.target.value); setSignalVolume(value); setTimerSignalVolume(value / 100); }} /><output htmlFor="signal-volume">{signalVolume}%</output><button type="button" className="secondary-button" onClick={previewSignal}>Play sound</button></div><label className="dismissal-control" htmlFor="notification-dismissal"><span>Dismiss notification</span><select id="notification-dismissal" value={notificationDismissal} onChange={event => onNotificationDismissalChange(event.target.value as CompletionNotificationDismissal)}><option value="automatic">Automatically after 6 seconds</option><option value="manual">Only when I close it</option></select></label></div></section>
+    <section className="data-settings"><div><span className="section-kicker">Backup and restore</span><h3>Your data</h3><p>Export every profile, routine, and timer session to a portable JSON backup.</p></div><div className="data-actions"><button type="button" className="secondary-button" disabled={Boolean(dataBusy)} onClick={exportData}>{dataBusy === 'export' ? 'Exporting…' : 'Export all data'}</button><button type="button" className="secondary-button danger-button" disabled={Boolean(dataBusy)} onClick={() => importInput.current?.click()}>{dataBusy === 'import' ? 'Backing up & importing…' : 'Import backup'}</button><input ref={importInput} className="file-input" type="file" accept="application/json,.json" onChange={importData}/><small>Import first saves existing data in the local backups folder, then replaces it.</small></div></section>
   </Modal>;
 }
 

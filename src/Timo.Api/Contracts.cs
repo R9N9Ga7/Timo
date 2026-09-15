@@ -24,3 +24,16 @@ public sealed record ReportDto(DateOnly From, DateOnly To, long PlannedSeconds, 
     int ScheduledCount, int CompletedCount, IReadOnlyList<CategorySummaryDto> Categories,
     IReadOnlyList<RoutineSummaryDto> Routines, IReadOnlyList<DaySummaryDto> Days,
     IReadOnlyList<RecentCompletionDto> RecentCompletions);
+
+public sealed record ProfileBackupDto(Guid Id, string Name, DateTime CreatedAtUtc);
+public sealed record CategoryBackupDto(Guid Id, Guid ProfileId, string Name, bool IsArchived, DateTime CreatedAtUtc);
+public sealed record TaskBackupDto(Guid Id, Guid ProfileId, Guid CategoryId, string Title, int TargetSeconds,
+    DateOnly StartDate, ScheduleType ScheduleType, int? IntervalDays, DayOfWeek? Weekday,
+    DateOnly? ArchivedOn, DateTime CreatedAtUtc);
+public sealed record OccurrenceBackupDto(Guid Id, Guid TaskDefinitionId, DateOnly ScheduledDate,
+    int PlannedSeconds, DateTime? CompletedAtUtc);
+public sealed record SessionBackupDto(Guid Id, Guid TaskOccurrenceId, DateTime StartedAtUtc, DateTime? EndedAtUtc);
+public sealed record DataBackupDto(int SchemaVersion, DateTime ExportedAtUtc,
+    IReadOnlyList<ProfileBackupDto> Profiles, IReadOnlyList<CategoryBackupDto> Categories,
+    IReadOnlyList<TaskBackupDto> Tasks, IReadOnlyList<OccurrenceBackupDto> Occurrences,
+    IReadOnlyList<SessionBackupDto> Sessions);

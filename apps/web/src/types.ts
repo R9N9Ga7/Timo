@@ -29,6 +29,10 @@ export interface Report {
   completedCount: number; categories: CategorySummary[]; routines: RoutineSummary[]; days: DaySummary[];
   recentCompletions: RecentCompletion[];
 }
+export interface DataBackup {
+  schemaVersion: number; exportedAtUtc: string;
+  profiles: unknown[]; categories: unknown[]; tasks: unknown[]; occurrences: unknown[]; sessions: unknown[];
+}
 export interface TaskInput {
   profileId: string; categoryId: string; title: string; targetSeconds: number; startDate: string;
   scheduleType: ScheduleType; intervalDays?: number; weekday?: number;

@@ -13,6 +13,8 @@ var dataDir = Environment.GetEnvironmentVariable("TIMO_DATA_DIR")
 Directory.CreateDirectory(dataDir);
 builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlite($"Data Source={Path.Combine(dataDir, "timo.db")}"));
 builder.Services.AddScoped<OccurrenceService>();
+builder.Services.AddScoped<DataBackupService>();
+builder.Services.AddSingleton(new DataBackupOptions(Path.Combine(dataDir, "backups")));
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyHeader().AllowAnyMethod()
     .SetIsOriginAllowed(origin => Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.Host is "localhost" or "127.0.0.1")));
 
@@ -62,6 +64,26 @@ profiles.MapDelete("/{id:guid}", async (Guid id, AppDbContext db) =>
     db.Profiles.Remove(profile);
     await db.SaveChangesAsync();
     return Results.NoContent();
+});
+
+var data = app.MapGroup("/api/data");
+data.MapGet("/export", async (DataBackupService service, CancellationToken ct) =>
+    Results.Ok(await service.ExportAsync(ct)));
+data.MapPost("/import", async (DataBackupDto backup, DataBackupService service, CancellationToken ct) =>
+{
+    try
+    {
+        await service.ImportAsync(backup, ct);
+        return Results.NoContent();
+    }
+    catch (InvalidDataException error)
+    {
+        return Results.BadRequest(new { error = error.Message });
+    }
+    catch (IOException error)
+    {
+        return Results.Problem(title: "Could not create a safety backup.", detail: error.Message);
+    }
 });
 
 var categories = app.MapGroup("/api/categories");
