@@ -30,6 +30,7 @@ export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [today, setToday] = useState<Occurrence[]>([]);
+  const [todayCategoryFilter, setTodayCategoryFilter] = useState('');
   const [rangeMode, setRangeMode] = useState<RangeMode>('week');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [report, setReport] = useState<Report>(emptyReport);
@@ -108,7 +109,8 @@ export default function App() {
 
   const currentProfile = profiles.find(x => x.id === profileId);
   const effectiveSeconds = (item: Occurrence) => item.elapsedSeconds + (item.isRunning ? Math.max(0, Math.floor((tick - loadedAt) / 1000)) : 0);
-  const completedToday = today.filter(item => effectiveSeconds(item) >= item.plannedSeconds).length;
+  const visibleToday = todayCategoryFilter ? today.filter(item => item.categoryId === todayCategoryFilter) : today;
+  const completedToday = visibleToday.filter(item => effectiveSeconds(item) >= item.plannedSeconds).length;
 
   async function toggleTimer(item: Occurrence) {
     try {
@@ -155,9 +157,13 @@ export default function App() {
       </section>
 
       <section className="today-section" id="today">
-        <div className="section-heading"><div><span className="section-kicker">Your rhythm</span><h2>Today’s routines</h2></div><div className="completion-note"><strong>{completedToday}</strong> of {today.length} complete</div></div>
+        <div className="section-heading today-heading"><div><span className="section-kicker">Your rhythm</span><h2>Today’s routines</h2></div><div className="today-controls">
+          <select value={todayCategoryFilter} onChange={e => setTodayCategoryFilter(e.target.value)} aria-label="Filter today’s routines by category"><option value="">All categories</option>{categories.map(x => <option value={x.id} key={x.id}>{x.name}{x.isArchived ? ' (archived)' : ''}</option>)}</select>
+          <div className="completion-note"><strong>{completedToday}</strong> of {visibleToday.length} complete</div>
+        </div></div>
         {today.length === 0 ? <Empty title="A quiet day" text="Create a routine and choose today as its start date." action={() => openTask()} /> :
-          <div className="task-grid">{today.map(item => {
+          visibleToday.length === 0 ? <div className="empty filtered-empty"><div className="empty-mark">○</div><h3>No routines in this category</h3><p>Choose another category to see today’s routines.</p></div> :
+          <div className="task-grid">{visibleToday.map(item => {
             const elapsed = effectiveSeconds(item);
             const complete = elapsed >= item.plannedSeconds;
             const progress = Math.min(100, elapsed / item.plannedSeconds * 100);
@@ -211,7 +217,7 @@ export default function App() {
 
     {modal === 'task' && <TaskModal profileId={profileId} categories={categories} task={editingTask} onClose={() => setModal(null)} onSaved={saved} onCategoryCreated={async name => { const result = await api.createCategory(profileId, name); setCategories(await api.categories(profileId)); return result.id; }} />}
     {modal === 'manage' && <ManageModal profileId={profileId} categories={categories} tasks={tasks} notificationDismissal={notificationDismissal} onNotificationDismissalChange={value => { setNotificationDismissal(value); setCompletionNotificationDismissal(value); }} onClose={() => setModal(null)} onChanged={loadProfileData} onEdit={openTask} />}
-    {modal === 'profile' && <ProfileModal profiles={profiles} activeId={profileId} onClose={() => setModal(null)} onSelect={id => { localStorage.setItem('timo-profile', id); setProfileId(id); setCategoryFilter(''); setModal(null); }} onChanged={loadProfiles} />}
+    {modal === 'profile' && <ProfileModal profiles={profiles} activeId={profileId} onClose={() => setModal(null)} onSelect={id => { localStorage.setItem('timo-profile', id); setProfileId(id); setTodayCategoryFilter(''); setCategoryFilter(''); setModal(null); }} onChanged={loadProfiles} />}
   </div>;
 }
 
